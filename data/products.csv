@@ -1,0 +1,9 @@
+product_id,name,category,price,cost,popularity
+1,Coffee,beverage,4.5,1.5,0.9
+2,Latte,beverage,5.5,2.0,0.85
+3,Cappuccino,beverage,5.0,1.8,0.8
+4,Espresso,beverage,3.5,1.2,0.7
+5,Pastry,food,4.0,1.5,0.75
+6,Sandwich,food,8.5,3.5,0.7
+7,Salad,food,9.0,3.8,0.6
+8,Merchandise,retail,15.0,7.0,0.4

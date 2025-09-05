@@ -1,0 +1,5 @@
+category,current_stock,reorder_point,max_capacity,unit,last_restock_date,stock_status
+coffee,802,200,1500,servings,2025-09-04,normal
+pastry,178,40,300,units,2025-08-31,normal
+sandwich,150,30,225,units,2025-08-31,normal
+merchandise,74,20,150,units,2025-09-02,normal
