@@ -1,44 +1,17 @@
 {
-  "accuracy": 88.95321478268131,
-  "iterations": 14,
-  "patterns_discovered": [
-    "Loyalty point multipliers are most effective on slow days",
-    "Peak coffee purchases occur between 7-9 AM on weekdays",
-    "New customers have 60% retention rate with welcome series",
-    "At-risk customers show 45% higher engagement with personalized win-back campaigns",
-    "Bundle offers work best for Regular segment customers"
-  ],
+  "accuracy": 45.0,
+  "iterations": 0,
+  "patterns_discovered": [],
   "campaign_history": [
     {
-      "timestamp": "2025-09-05T10:33:13.336411",
+      "timestamp": "2025-09-06T05:23:42.704955",
       "num_campaigns": 6,
-      "total_cost": 7928.460817266321,
-      "total_revenue": 15020.02377433966,
+      "total_cost": 7064.572654551442,
+      "total_revenue": 12513.06280212575,
       "accuracy_at_generation": 45.0
-    },
-    {
-      "timestamp": "2025-09-05T11:17:11.937110",
-      "num_campaigns": 6,
-      "total_cost": 7397.654182035725,
-      "total_revenue": 24087.519760184754,
-      "accuracy_at_generation": 77.97879115220232
-    },
-    {
-      "timestamp": "2025-09-05T12:00:26.010679",
-      "num_campaigns": 6,
-      "total_cost": 8348.530379849435,
-      "total_revenue": 25043.56464278383,
-      "accuracy_at_generation": 82.84059321349774
     }
   ],
-  "segment_performance": {
-    "Champions": 0.9108268432676636,
-    "Loyal": 0.8029141869624694,
-    "Regular": 0.8268013756416389,
-    "At Risk": 0.641211674131247,
-    "Lost": 0.6910002468088695,
-    "New": 0.896266742208354
-  },
+  "segment_performance": {},
   "promotion_effectiveness": {},
-  "timestamp": "2025-09-05T10:33:13.334231"
+  "timestamp": "2025-09-06T05:22:30.811630"
 }

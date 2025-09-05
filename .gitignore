@@ -52,11 +52,14 @@ venv.bak/
 .tox/
 htmlcov/
 
-# Data files (can be regenerated)
-# Uncomment if you don't want to track generated data
-# data/*.csv
-# models/*.pkl
-# models/*.joblib
+# Data files (keep for deployment)
+# data/*.csv  - Keep for Streamlit Cloud
+# models/*.pkl - Keep for Streamlit Cloud
+# models/*.joblib - Keep for Streamlit Cloud
+
+# But ignore dynamic generation logs
+data/*.log
+models/*.log
 
 # Logs
 *.log

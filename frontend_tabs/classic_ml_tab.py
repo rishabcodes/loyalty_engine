@@ -93,6 +93,12 @@ def run_classic_ml_tab():
         if gen_data:
             with st.spinner("Generating customer data..."):
                 try:
+                    # Check if data exists, if not show generation instructions
+                    if not os.path.exists('data/customers.csv'):
+                        st.warning("Data files not found. For local development, run: `python complete_data_gen.py`")
+                        st.info("Demo data is pre-generated for cloud deployment.")
+                        return
+                    
                     result = subprocess.run(
                         [sys.executable, "complete_data_gen.py", "42"],
                         capture_output=True,
@@ -117,6 +123,12 @@ def run_classic_ml_tab():
         if train:
             with st.spinner("Training models..."):
                 try:
+                    # Check if models exist, if not show training instructions
+                    if not os.path.exists('models/segmentation_model.pkl'):
+                        st.warning("Model files not found. For local development, run: `python train_models.py`")
+                        st.info("Pre-trained models are included for cloud deployment.")
+                        return
+                    
                     result = subprocess.run(
                         [sys.executable, "train_models.py"],
                         capture_output=True,

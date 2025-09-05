@@ -96,11 +96,27 @@ def run_adaptive_ai_tab():
     
     # Handle button clicks
     if reset_learning:
-        # Reset through the engine
+        # Delete the persistent file
+        learning_file = 'data/adaptive_learning_state.json'
+        if os.path.exists(learning_file):
+            os.remove(learning_file)
+        
+        # Reset the engine
         engine = AdaptiveAIEngine()
         engine.reset_learning()
-        st.session_state.adaptive_learning_data = load_or_create_learning_state()
+        
+        # Reset session state with fresh data
+        st.session_state.adaptive_learning_data = {
+            'iterations': [],
+            'accuracy': [],
+            'patterns_discovered': [],
+            'current_iteration': 0,
+            'is_learning': False,
+            'learned_patterns': [],
+            'current_accuracy': 45.0
+        }
         st.info("🔄 Learning system reset to 45% accuracy. Ready to start fresh.")
+        st.rerun()  # Force UI update
     
     elif run_one:
         run_learning_iterations(1)
@@ -118,7 +134,15 @@ def run_adaptive_ai_tab():
     st.divider()
     st.subheader("🎯 Generate AI-Optimized Campaigns")
     
-    col1, col2 = st.columns([1, 2])
+    # Show pattern info full width first
+    patterns_count = len(st.session_state.adaptive_learning_data['learned_patterns'])
+    if patterns_count > 0:
+        st.info(f"💡 System has discovered {patterns_count} high-value patterns through adaptive learning")
+    else:
+        st.info("🔄 System will discover patterns as it learns from customer interactions")
+    
+    # Then show button with better layout
+    col1, col2 = st.columns([1, 1])  # 50-50 split
     
     with col1:
         if st.button("Generate Adaptive Campaigns", 
@@ -128,11 +152,10 @@ def run_adaptive_ai_tab():
             generate_adaptive_campaigns()
     
     with col2:
-        patterns_count = len(st.session_state.adaptive_learning_data['learned_patterns'])
-        if patterns_count > 0:
-            st.info(f"System has discovered {patterns_count} high-value patterns")
-        else:
-            st.info("System will discover patterns as it learns")
+        # Can add additional controls or metrics here if needed
+        accuracy = st.session_state.adaptive_learning_data.get('current_accuracy', 45.0)
+        st.metric("Current AI Accuracy", f"{accuracy:.1f}%", 
+                 help="Higher accuracy leads to better campaign recommendations")
 
 def run_learning_iterations(num_iterations):
     """Simulate learning iterations"""

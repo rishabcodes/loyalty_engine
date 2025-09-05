@@ -17,6 +17,23 @@ A sophisticated ML-powered loyalty program system designed specifically for coff
 2. **Adaptive AI Tab**: Real-time learning system that improves with feedback
 3. **Comparison Tab**: Side-by-side analysis of both approaches
 
+## 🌐 Live Demo
+
+[![Open in Streamlit](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://your-app-name.streamlit.app)
+
+## 🚀 Deployment
+
+### Streamlit Cloud (Recommended)
+1. Fork this repository
+2. Connect to Streamlit Cloud
+3. Deploy with main file: `app_clean.py`
+4. The app will be available at: `https://your-app-name.streamlit.app`
+
+### Local Development
+```bash
+streamlit run app_clean.py
+```
+
 ## 📦 Installation
 
 ```bash
@@ -27,8 +44,11 @@ cd loyalty_engine
 # Install dependencies
 pip install -r requirements.txt
 
-# Run the demo
+# For local development
 python run_demo.py
+
+# For Streamlit Cloud deployment
+# The app will automatically run app_clean.py
 ```
 
 ## 🎮 Quick Start
