@@ -156,6 +156,11 @@ def run_adaptive_ai_tab():
         accuracy = st.session_state.adaptive_learning_data.get('current_accuracy', 45.0)
         st.metric("Current AI Accuracy", f"{accuracy:.1f}%", 
                  help="Higher accuracy leads to better campaign recommendations")
+    
+    # Display campaigns if they exist in session state (persists after generation)
+    if 'adaptive_campaigns' in st.session_state and st.session_state.adaptive_campaigns:
+        st.divider()
+        display_adaptive_campaigns()
 
 def run_learning_iterations(num_iterations):
     """Simulate learning iterations"""
@@ -414,116 +419,127 @@ def generate_adaptive_campaigns():
         st.session_state.adaptive_campaigns = results.get('campaigns', [])
         st.session_state.adaptive_results = results
         
-        # Display results
+        # Simple success message - display will be handled separately
         st.success("✅ Adaptive campaigns generated using learned patterns!")
+
+def display_adaptive_campaigns():
+    """Display the generated adaptive campaigns from session state"""
+    
+    if 'adaptive_results' not in st.session_state or 'adaptive_campaigns' not in st.session_state:
+        return
+    
+    results = st.session_state.adaptive_results
+    campaigns = st.session_state.adaptive_campaigns
+    
+    if not campaigns:
+        return
+    
+    summary = results.get('summary', {})
+    
+    # Metrics from actual results
+    total_cost = summary.get('total_cost', 0)
+    total_revenue = summary.get('total_revenue', 0)
+    overall_roi = summary.get('total_roi', 0)
+    
+    metrics = [
+        ("Overall ROI", f"{overall_roi*100:.1f}%", "+23% vs baseline"),
+        ("Total Revenue", f"${total_revenue:,.0f}", None),
+        ("Investment", f"${total_cost:,.0f}", None),
+        ("Campaigns", str(len(campaigns)), None)
+    ]
+    display_metrics_row(metrics)
+    
+    # Campaign recommendations in text format
+    st.subheader("📋 Adaptive Campaign Recommendations")
+    
+    # Sort campaigns by ROI for better display
+    campaigns_sorted = sorted(campaigns, key=lambda x: x['roi'], reverse=True)
+    
+    # Display top campaigns with detailed info
+    num_to_show = min(5, len(campaigns_sorted))
+    
+    for i in range(num_to_show):
+        campaign = campaigns_sorted[i]
         
-        campaigns = results.get('campaigns', [])
-        summary = results.get('summary', {})
+        # Extract data
+        segment = campaign.get('segment_name', 'Unknown')
+        promotion = campaign.get('promotion', 'Unknown')
+        cost = campaign.get('cost', 0)
+        revenue = campaign.get('expected_revenue', 0)
+        roi = campaign.get('roi', 0)
+        pattern = campaign.get('pattern_applied', 'AI optimization')
         
-        # Metrics from actual results
-        total_cost = summary.get('total_cost', 0)
-        total_revenue = summary.get('total_revenue', 0)
-        overall_roi = summary.get('total_roi', 0)
+        # Calculate profit and score
+        profit = revenue - cost
         
-        metrics = [
-            ("Overall ROI", f"{overall_roi*100:.1f}%", "+23% vs baseline"),
-            ("Total Revenue", f"${total_revenue:,.0f}", None),
-            ("Investment", f"${total_cost:,.0f}", None),
-            ("Campaigns", str(len(campaigns)), None)
-        ]
-        display_metrics_row(metrics)
+        # Calculate overall score (0-100) based on multiple factors
+        score_components = []
         
-        # Campaign recommendations in text format
-        st.subheader("📋 Adaptive Campaign Recommendations")
+        # ROI component (40% weight)
+        if roi > 0:
+            roi_score = min(100, roi * 40)  # Scale ROI to score
+            score_components.append(roi_score * 0.4)
         
-        # Sort campaigns by ROI for better display
-        campaigns_sorted = sorted(campaigns, key=lambda x: x['roi'], reverse=True)
+        # Profit margin component (30% weight)
+        if revenue > 0:
+            profit_margin = profit / revenue
+            margin_score = min(100, profit_margin * 150)
+            score_components.append(margin_score * 0.3)
         
-        # Display top campaigns with detailed info
-        num_to_show = min(5, len(campaigns_sorted))
+        # AI confidence component (30% weight) - based on learning progress
+        learning_progress = st.session_state.adaptive_learning_data.get('accuracy', [])
+        if learning_progress:
+            confidence = learning_progress[-1] if learning_progress else 50
+            score_components.append(confidence * 0.3)
         
-        for i in range(num_to_show):
-            campaign = campaigns_sorted[i]
+        overall_score = sum(score_components) if score_components else 50
+        
+        # Display campaign card
+        with st.container():
+            st.markdown(f"### Campaign #{i+1}: {promotion}")
             
-            # Extract data
-            segment = campaign.get('segment_name', 'Unknown')
-            promotion = campaign.get('promotion', 'Unknown')
-            cost = campaign.get('cost', 0)
-            revenue = campaign.get('expected_revenue', 0)
-            roi = campaign.get('roi', 0)
-            pattern = campaign.get('pattern_applied', 'AI optimization')
+            col_a, col_b = st.columns(2)
             
-            # Calculate profit and score
-            profit = revenue - cost
+            with col_a:
+                st.markdown(f"**Target Segment:** {segment}")
+                st.markdown(f"**AI Pattern:** {pattern}")
+                st.markdown(f"**Investment:** ${cost:,.2f}")
+                st.markdown(f"**Expected Revenue:** ${revenue:,.2f}")
             
-            # Calculate overall score (0-100) based on multiple factors
-            score_components = []
-            
-            # ROI component (40% weight)
-            if roi > 0:
-                roi_score = min(100, roi * 40)  # Scale ROI to score
-                score_components.append(roi_score * 0.4)
-            
-            # Profit margin component (30% weight)
-            if revenue > 0:
-                profit_margin = profit / revenue
-                margin_score = min(100, profit_margin * 150)
-                score_components.append(margin_score * 0.3)
-            
-            # AI confidence component (30% weight) - based on learning progress
-            learning_progress = st.session_state.adaptive_learning_data.get('accuracy', [])
-            if learning_progress:
-                confidence = learning_progress[-1] if learning_progress else 50
-                score_components.append(confidence * 0.3)
-            
-            overall_score = sum(score_components) if score_components else 50
-            
-            # Display campaign card
-            with st.container():
-                st.markdown(f"### Campaign #{i+1}: {promotion}")
+            with col_b:
+                st.markdown(f"**ROI:** {roi*100:.1f}%")
+                st.markdown(f"**Net Profit:** ${profit:,.2f}")
                 
-                col_a, col_b = st.columns(2)
+                # Overall score with color coding
+                if overall_score >= 80:
+                    score_color = "🟢"
+                    score_label = "Excellent"
+                elif overall_score >= 60:
+                    score_color = "🟡"
+                    score_label = "Good"
+                elif overall_score >= 40:
+                    score_color = "🟠"
+                    score_label = "Fair"
+                else:
+                    score_color = "🔴"
+                    score_label = "Poor"
                 
-                with col_a:
-                    st.markdown(f"**Target Segment:** {segment}")
-                    st.markdown(f"**AI Pattern:** {pattern}")
-                    st.markdown(f"**Investment:** ${cost:,.2f}")
-                    st.markdown(f"**Expected Revenue:** ${revenue:,.2f}")
-                
-                with col_b:
-                    st.markdown(f"**ROI:** {roi*100:.1f}%")
-                    st.markdown(f"**Net Profit:** ${profit:,.2f}")
-                    
-                    # Overall score with color coding
-                    if overall_score >= 80:
-                        score_color = "🟢"
-                        score_label = "Excellent"
-                    elif overall_score >= 60:
-                        score_color = "🟡"
-                        score_label = "Good"
-                    elif overall_score >= 40:
-                        score_color = "🟠"
-                        score_label = "Fair"
-                    else:
-                        score_color = "🔴"
-                        score_label = "Poor"
-                    
-                    st.markdown(f"**Overall Score:** {score_color} {overall_score:.0f}/100 ({score_label})")
-                    st.markdown(f"**AI Confidence:** {learning_progress[-1] if learning_progress else 50:.0f}%")
-                
-                # Add a divider between campaigns
-                if i < num_to_show - 1:
-                    st.markdown("---")
-        
-        if len(campaigns_sorted) > num_to_show:
-            st.info(f"Showing top {num_to_show} of {len(campaigns_sorted)} AI-optimized campaigns")
-        
-        # Insights
-        st.info("""
-        💡 **Adaptive AI Advantages:**
-        - Continuously learns from customer behavior
-        - Discovers hidden patterns automatically
-        - Improves accuracy through continuous learning
-        - Applies context-aware optimizations
-        - Reduces manual analysis time by 75%
-        """)
+                st.markdown(f"**Overall Score:** {score_color} {overall_score:.0f}/100 ({score_label})")
+                st.markdown(f"**AI Confidence:** {learning_progress[-1] if learning_progress else 50:.0f}%")
+            
+            # Add a divider between campaigns
+            if i < num_to_show - 1:
+                st.markdown("---")
+    
+    if len(campaigns_sorted) > num_to_show:
+        st.info(f"Showing top {num_to_show} of {len(campaigns_sorted)} AI-optimized campaigns")
+    
+    # Insights
+    st.info("""
+    💡 **Adaptive AI Advantages:**
+    - Continuously learns from customer behavior
+    - Discovers hidden patterns automatically
+    - Improves accuracy through continuous learning
+    - Applies context-aware optimizations
+    - Reduces manual analysis time by 75%
+    """)
