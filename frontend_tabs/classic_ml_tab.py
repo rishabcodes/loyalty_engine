@@ -11,6 +11,7 @@ import subprocess
 from datetime import datetime, timedelta
 import plotly.express as px
 import plotly.graph_objects as go
+import math
 
 # Add parent directory to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -66,15 +67,97 @@ def run_classic_ml_tab():
                 "balanced": "Balanced Approach"
             }.get(x, x)
         )
-        
-        # Target segments
-        all_segments = ["Champions", "Loyal", "At Risk", "Regular", "New", "Lost"]
-        target_segments = st.multiselect(
-            "👥 Target Segments",
-            all_segments,
-            default=["Champions", "Loyal", "At Risk"],
-            help="Select customer segments to target"
+    
+    # Campaign Duration Section
+    st.subheader("📅 Campaign Duration")
+    
+    col1_dur, col2_dur, col3_dur = st.columns([2, 1, 1])
+    
+    # Initialize session state for campaign days if not exists
+    if 'campaign_days_value' not in st.session_state:
+        st.session_state.campaign_days_value = 30
+    
+    with col1_dur:
+        # Campaign Duration Slider
+        campaign_days = st.slider(
+            "Campaign Duration",
+            min_value=1,
+            max_value=90,
+            value=st.session_state.campaign_days_value,
+            step=1,
+            format="%d days",
+            help="Campaign run time affects budget distribution, ROI, and customer fatigue",
+            key="campaign_days_slider"
         )
+        
+        # Update session state
+        st.session_state.campaign_days_value = campaign_days
+        
+        # Show weekly/monthly breakdown
+        weeks = campaign_days / 7
+        months = campaign_days / 30
+        st.caption(f"≈ {weeks:.1f} weeks | {months:.1f} months")
+    
+    with col2_dur:
+        # Quick duration presets
+        preset_options = {
+            "Custom": None,
+            "Weekend Flash (3 days)": 3,
+            "Weekly (7 days)": 7,
+            "Bi-Weekly (14 days)": 14,
+            "Monthly (30 days)": 30,
+            "Quarterly (90 days)": 90
+        }
+        
+        duration_preset = st.selectbox(
+            "Quick Select",
+            list(preset_options.keys()),
+            key="duration_preset_select"
+        )
+        
+        # Update slider value if preset selected
+        if duration_preset != "Custom" and preset_options[duration_preset]:
+            if st.button("Apply Preset", key="apply_preset_btn"):
+                st.session_state.campaign_days_value = preset_options[duration_preset]
+                st.rerun()
+    
+    with col3_dur:
+        # Real-time impact metrics
+        daily_budget = budget / campaign_days
+        st.metric("Daily Budget", f"${daily_budget:.0f}")
+        
+        # Calculate fatigue factor based on duration
+        if campaign_days <= 3:
+            fatigue_factor = 1.0
+            effectiveness_label = "Maximum"
+        elif campaign_days <= 7:
+            fatigue_factor = 0.98
+            effectiveness_label = "Very High"
+        elif campaign_days <= 14:
+            fatigue_factor = 0.95
+            effectiveness_label = "High"
+        elif campaign_days <= 30:
+            fatigue_factor = 0.90
+            effectiveness_label = "Good"
+        elif campaign_days <= 60:
+            fatigue_factor = 0.80
+            effectiveness_label = "Moderate"
+        else:
+            fatigue_factor = 0.70
+            effectiveness_label = "Low"
+            
+        st.metric("Effectiveness", effectiveness_label, 
+                 delta=f"{(fatigue_factor-1)*100:+.0f}%")
+    
+    # Target segments
+    st.subheader("👥 Target Segments")
+    all_segments = ["Champions", "Loyal", "At Risk", "Regular", "New", "Lost"]
+    target_segments = st.multiselect(
+        "Select customer segments to target",
+        all_segments,
+        default=["Champions", "Loyal", "At Risk"],
+        help="Select customer segments to target with campaigns"
+    )
     
     st.markdown("---")
     
@@ -232,7 +315,8 @@ def run_classic_ml_tab():
                 params = {
                     'budget': budget if not quick_demo else 10000,
                     'goal': business_goal if not quick_demo else 'maximize_roi',
-                    'target_segments': target_segments if not quick_demo else None
+                    'target_segments': target_segments if not quick_demo else None,
+                    'campaign_days': campaign_days if not quick_demo else 30
                 }
                 
                 # Generate recommendations
@@ -358,6 +442,136 @@ def display_recommendations(results, budget):
             num_campaigns,
             "optimized"
         )
+    
+    # Campaign Duration Impact Section
+    if 'campaign_duration' in summary:
+        st.markdown("---")
+        st.subheader("📅 Campaign Duration Impact")
+        
+        col1_dur, col2_dur, col3_dur, col4_dur = st.columns(4)
+        
+        with col1_dur:
+            st.metric(
+                "Duration",
+                f"{summary.get('campaign_duration', 30)} days",
+                f"≈ {summary.get('campaign_duration', 30)/7:.1f} weeks"
+            )
+        
+        with col2_dur:
+            st.metric(
+                "Daily Budget",
+                f"${summary.get('daily_budget', 0):.0f}",
+                "per day"
+            )
+        
+        with col3_dur:
+            effectiveness = summary.get('effectiveness_score', 100)
+            st.metric(
+                "Effectiveness",
+                f"{effectiveness:.0f}%",
+                f"{effectiveness - 100:.0f}%" if effectiveness != 100 else "Optimal"
+            )
+        
+        with col4_dur:
+            # Show optimal duration for dominant segment
+            if campaigns:
+                segment_counts = {}
+                for c in campaigns:
+                    seg = c.get('segment_name', 'Unknown')
+                    segment_counts[seg] = segment_counts.get(seg, 0) + 1
+                dominant_segment = max(segment_counts, key=segment_counts.get)
+                
+                optimal_days = {
+                    'Champions': 14,
+                    'Loyal': 21,
+                    'Regular': 30,
+                    'At Risk': 7,
+                    'Lost': 45,
+                    'New': 30
+                }
+                optimal = optimal_days.get(dominant_segment, 30)
+                st.metric(
+                    "Optimal Duration",
+                    f"{optimal} days",
+                    f"for {dominant_segment}"
+                )
+        
+        # Duration Impact Visualization
+        col1_viz, col2_viz = st.columns(2)
+        
+        with col1_viz:
+            # ROI Decay Curve
+            st.markdown("**ROI vs Campaign Duration**")
+            
+            # Create sample data for ROI decay curve
+            days_range = list(range(1, 91))
+            roi_values = []
+            for d in days_range:
+                if d <= 3:
+                    base_multiplier = 1.4
+                elif d <= 7:
+                    base_multiplier = 1.2
+                elif d <= 30:
+                    base_multiplier = 1.0
+                else:
+                    base_multiplier = 0.85 * (1 - 0.005 * (d - 30))
+                roi_values.append(base_multiplier * 100)
+            
+            fig_roi = go.Figure()
+            fig_roi.add_trace(go.Scatter(
+                x=days_range,
+                y=roi_values,
+                mode='lines',
+                name='ROI Effectiveness',
+                line=dict(color='blue', width=2)
+            ))
+            
+            # Mark current duration
+            current_duration = summary.get('campaign_duration', 30)
+            current_roi_idx = min(current_duration - 1, 89)
+            fig_roi.add_trace(go.Scatter(
+                x=[current_duration],
+                y=[roi_values[current_roi_idx]],
+                mode='markers',
+                name='Your Campaign',
+                marker=dict(color='red', size=12)
+            ))
+            
+            fig_roi.update_layout(
+                xaxis_title="Campaign Days",
+                yaxis_title="ROI Effectiveness (%)",
+                height=300,
+                showlegend=True,
+                margin=dict(l=0, r=0, t=30, b=0)
+            )
+            st.plotly_chart(fig_roi, use_container_width=True)
+        
+        with col2_viz:
+            # Budget Distribution Pattern
+            st.markdown("**Budget Distribution Patterns**")
+            
+            # Show distribution pattern for each segment
+            patterns_data = []
+            for campaign in campaigns[:3]:  # Show top 3 campaigns
+                patterns_data.append({
+                    'Segment': campaign.get('segment_name', 'Unknown'),
+                    'Pattern': campaign.get('budget_pattern', 'uniform'),
+                    'Daily Budget': f"${campaign.get('daily_budget', 0):.0f}",
+                    'Fatigue Factor': f"{campaign.get('fatigue_factor', 1.0):.2f}"
+                })
+            
+            if patterns_data:
+                df_patterns = pd.DataFrame(patterns_data)
+                st.dataframe(df_patterns, hide_index=True, use_container_width=True)
+            
+            # Pattern explanation
+            st.caption("""
+            **Distribution Patterns:**
+            - **front_heavy**: 60% budget in first third (At Risk, Lost)
+            - **uniform**: Even distribution (Champions, Loyal)
+            - **pulse**: Boost every 7 days (Regular)
+            - **graduated**: Increasing over time (New)
+            """)
     
     # ROI Visualization
     st.markdown("---")

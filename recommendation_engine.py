@@ -436,6 +436,113 @@ class RecommendationEngine:
         }
         return premium_promotions.get(segment, 'Premium Offer - 35% Off')
     
+    def calculate_fatigue_factor(self, campaign_days):
+        """
+        Model how customer responsiveness decreases over time
+        """
+        if campaign_days <= 3:
+            return 1.0  # No fatigue for flash sales
+        elif campaign_days <= 7:
+            return 0.98  # Minimal fatigue
+        elif campaign_days <= 14:
+            return 0.95  # Slight fatigue
+        elif campaign_days <= 30:
+            # Linear decay from 95% to 85%
+            return 0.95 - (campaign_days - 14) * 0.00625
+        else:  # 30-90 days
+            # Exponential decay after 30 days
+            import math
+            days_over_30 = campaign_days - 30
+            return 0.85 * math.exp(-0.01 * days_over_30)
+    
+    def calculate_duration_adjusted_roi(self, base_roi, campaign_days, segment):
+        """
+        Calculate ROI with duration-based decay
+        Shorter campaigns = higher intensity but higher cost per day
+        Longer campaigns = lower intensity but risk fatigue
+        """
+        
+        # Optimal duration per segment (based on behavior patterns)
+        optimal_days = {
+            'Champions': 14,     # Frequent buyers, shorter cycles
+            'Loyal': 21,         # Regular engagement
+            'Regular': 30,        # Standard monthly cycle
+            'At Risk': 7,        # Urgent re-engagement needed
+            'Lost': 45,          # Longer win-back period
+            'New': 30            # Full onboarding cycle
+        }
+        
+        segment_optimal = optimal_days.get(segment, 30)
+        
+        # Calculate deviation from optimal
+        deviation_ratio = abs(campaign_days - segment_optimal) / segment_optimal
+        
+        # ROI decay formula
+        if campaign_days <= 3:  # Flash campaigns
+            # High urgency drives action but expensive
+            roi_multiplier = 1.4 * (1 - deviation_ratio * 0.2)
+        elif campaign_days <= 7:  # Weekly campaigns
+            # Good for urgent re-engagement
+            roi_multiplier = 1.2 * (1 - deviation_ratio * 0.15)
+        elif campaign_days <= 30:  # Monthly campaigns
+            # Standard effectiveness
+            roi_multiplier = 1.0 * (1 - deviation_ratio * 0.1)
+        else:  # Long campaigns (30-90 days)
+            # Fatigue sets in, diminishing returns
+            fatigue_rate = 0.005 * (campaign_days - 30)  # 0.5% decay per day after 30
+            roi_multiplier = (0.85 * (1 - deviation_ratio * 0.1)) * (1 - fatigue_rate)
+        
+        return base_roi * roi_multiplier
+    
+    def distribute_budget_over_time(self, total_budget, campaign_days, segment):
+        """
+        Distribute budget optimally over campaign duration
+        """
+        
+        # Daily base budget
+        daily_budget = total_budget / campaign_days
+        
+        # Front-loading strategy for different segments
+        distribution_patterns = {
+            'At Risk': 'front_heavy',    # 60% in first third
+            'Lost': 'front_heavy',        # Need immediate impact
+            'Champions': 'uniform',       # Consistent engagement
+            'Loyal': 'uniform',          # Steady approach
+            'Regular': 'pulse',          # Periodic boosts
+            'New': 'graduated'           # Increasing over time
+        }
+        
+        pattern = distribution_patterns.get(segment, 'uniform')
+        
+        if pattern == 'front_heavy':
+            # 60% budget in first 1/3 of campaign
+            first_third = int(campaign_days / 3)
+            weights = ([1.8] * first_third + 
+                      [0.7] * (campaign_days - first_third))
+        elif pattern == 'pulse':
+            # Boost every 7 days
+            weights = [1.5 if i % 7 == 0 else 0.9 
+                      for i in range(campaign_days)]
+        elif pattern == 'graduated':
+            # Start small, increase over time
+            weights = [0.5 + (1.0 * i / campaign_days) 
+                      for i in range(campaign_days)]
+        else:
+            # Uniform distribution
+            weights = [1.0] * campaign_days
+        
+        # Normalize weights to match total budget
+        weight_sum = sum(weights)
+        daily_budgets = [(w / weight_sum) * total_budget for w in weights]
+        
+        return {
+            'daily_budgets': daily_budgets,
+            'pattern': pattern,
+            'avg_daily': daily_budget,
+            'peak_day_budget': max(daily_budgets) if daily_budgets else daily_budget,
+            'min_day_budget': min(daily_budgets) if daily_budgets else daily_budget
+        }
+    
     def recommend(self, customers_df, params=None):
         """Generate campaign recommendations using real data"""
         if params is None:
@@ -444,10 +551,15 @@ class RecommendationEngine:
         budget = params.get('budget', 10000)
         goal = params.get('goal', 'maximize_roi')
         target_segments = params.get('target_segments', None)
+        campaign_days = params.get('campaign_days', 30)  # Default 30 days
         
         # Calculate budget-based campaign intensity
         base_budget = 5000  # Minimum viable budget
         intensity_multiplier = min(3.0, 1.0 + (budget - base_budget) / 10000)  # Scale up to 3x intensity
+        
+        # Calculate duration-based metrics
+        daily_budget = budget / campaign_days
+        fatigue_factor = self.calculate_fatigue_factor(campaign_days)
         
         # Load real data
         if customers_df is None or len(customers_df) == 0:
@@ -646,7 +758,21 @@ class RecommendationEngine:
                 if customers_to_target > 0:
                     total_cost = customers_to_target * cost_per_customer
                     total_revenue = customers_to_target * revenue_per_customer
-                    roi = ((total_revenue - total_cost) / total_cost * 100) if total_cost > 0 else 0
+                    
+                    # Calculate base ROI
+                    base_roi = ((total_revenue - total_cost) / total_cost) if total_cost > 0 else 0
+                    
+                    # Apply duration adjustment to ROI
+                    adjusted_roi = self.calculate_duration_adjusted_roi(base_roi, campaign_days, segment)
+                    
+                    # Apply fatigue factor to revenue
+                    adjusted_revenue = total_revenue * fatigue_factor
+                    
+                    # Get budget distribution for this segment
+                    budget_distribution = self.distribute_budget_over_time(total_cost, campaign_days, segment)
+                    
+                    # Calculate final ROI percentage
+                    roi = adjusted_roi * 100
                     
                     # Only create campaign if it makes financial sense
                     min_roi_threshold = -5.0  # Allow slightly negative ROI for more campaigns
@@ -656,7 +782,11 @@ class RecommendationEngine:
                             'promotion': promotion,
                             'customers_targeted': customers_to_target,
                             'cost': round(total_cost, 2),
-                            'expected_revenue': round(total_revenue, 2),
+                            'expected_revenue': round(adjusted_revenue, 2),
+                            'campaign_days': campaign_days,
+                            'daily_budget': round(total_cost / campaign_days, 2),
+                            'budget_pattern': budget_distribution['pattern'],
+                            'fatigue_factor': round(fatigue_factor, 3),
                             'roi': round(roi, 2),
                             'conversion_rate': round(response_rate, 3)
                         })
@@ -778,7 +908,11 @@ class RecommendationEngine:
                 'total_revenue': round(total_revenue, 2),
                 'total_roi': round(total_roi, 2),
                 'avg_roi': round(sum(c['roi'] for c in campaigns) / len(campaigns), 2) if campaigns else 0,
-                'customers_reached': sum(c['customers_targeted'] for c in campaigns)
+                'customers_reached': sum(c['customers_targeted'] for c in campaigns),
+                'campaign_duration': campaign_days,
+                'daily_budget': round(budget / campaign_days, 2),
+                'fatigue_factor': round(fatigue_factor, 3),
+                'effectiveness_score': round(fatigue_factor * 100, 1)
             },
             'segment_distribution': segment_counts.to_dict(),
             'timestamp': datetime.now().isoformat()
